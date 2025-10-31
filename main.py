@@ -5,6 +5,7 @@ from config.secrets import bot_token, DATABASE_URL
 import asyncio
 from db.database_manager import DatabaseManager
 from sqlalchemy import create_engine
+from db.base import Base
 
 
 class MyBot(commands.Bot):
@@ -29,6 +30,7 @@ class MyBot(commands.Bot):
 
 async def main():
     bot = MyBot()
+    Base.metadata.create_all(bind=bot.engine)
     try:
         await bot.start(token=bot_token)
     except KeyboardInterrupt:
