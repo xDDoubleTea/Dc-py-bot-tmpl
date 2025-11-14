@@ -7,17 +7,27 @@ import asyncio
 from db.database_manager import DatabaseManager
 from sqlalchemy import create_engine
 from db.base import Base
+from config.secrets import debug
+from config.logger import setup_logger
+import signal
+import os
+
+logger = logging.getLogger("LeetCodeBot")
 
 
 class MyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
         super().__init__(command_prefix=command_prefix, intents=intents)
-        self.engine = create_engine(DATABASE_URL, echo=True)
+        self.logger = logging.getLogger("LeetCodeBot")
+
+        self.engine = create_engine(DATABASE_URL, echo=debug, hide_parameters=True)
         self.database_manager = DatabaseManager(self, self.engine)
 
     async def setup_hook(self) -> None:
-        await self.load_extension("cogs.general")
+        for cog in os.listdir("cogs"):
+            if cog.endswith(".py"):
+                await self.load_extension(f"cogs.{cog[:-3]}")
 
     async def close(self) -> None:
         await super().close()
