@@ -16,3 +16,4 @@ def get_required_secret(key: str) -> str:
 
 bot_token = get_required_secret("BOT_TOKEN")
 DATABASE_URL = get_required_secret("DATABASE_URL")
+debug = True
