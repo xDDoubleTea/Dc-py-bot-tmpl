@@ -1,4 +1,5 @@
 import discord
+import logging
 from discord.ext import commands
 from config.constants import command_prefix, MY_GUILD
 from config.secrets import bot_token, DATABASE_URL
