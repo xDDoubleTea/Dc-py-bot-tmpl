@@ -41,6 +41,40 @@ class MyBot(commands.Bot):
 
 async def main():
     bot = MyBot()
+
+    async def shutdown(sig: signal.Signals, loop: asyncio.AbstractEventLoop):
+        if sig:
+            bot.logger.info(f"Received exit signal {sig.name}...")
+
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
+            bot.logger.info(f"Cancelling task {task.get_name()}...")
+
+        await bot.close()
+        bot.logger.info("Shutdown complete.")
+        loop.stop()
+
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(
+            sig, lambda s=sig: asyncio.create_task(shutdown(s, loop))
+        )
+
+    if debug:
+        setup_logger(log_level=logging.DEBUG)
+    else:
+        setup_logger(log_level=logging.INFO)
+    Base.metadata.create_all(bind=bot.engine)
+    try:
+        await bot.start(token=bot_token)
+    except asyncio.CancelledError:
+        bot.logger.info("Bot shutdown initiated...")
+    except Exception as e:
+        bot.logger.exception("An unhandled error occurred:", exc_info=e)
+    finally:
+        if not bot.is_closed():
+            await bot.close()
+            bot.logger.info("Bot closed.")
     Base.metadata.create_all(bind=bot.engine)
     try:
         await bot.start(token=bot_token)
