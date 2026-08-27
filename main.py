@@ -14,6 +14,7 @@ from db.base import Base
 from db.example import GuildSetting, User  # noqa: F401
 from config.secrets import debug
 from config.logger import setup_logger
+from utils.error_handlers import ErrorHandlingTree, handle_command_error
 import signal
 import os
 
@@ -26,7 +27,11 @@ intents = discord.Intents.all()
 
 class MyBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix=command_prefix, intents=intents)
+        super().__init__(
+            command_prefix=command_prefix,
+            intents=intents,
+            tree_cls=ErrorHandlingTree,
+        )
 
         self.engine = create_async_engine(
             DATABASE_URL, echo=debug, hide_parameters=True
@@ -44,6 +49,11 @@ class MyBot(commands.Bot):
                 
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
+
+    async def on_command_error(
+        self, ctx: commands.Context, error: commands.CommandError
+    ) -> None:
+        await handle_command_error(ctx, error)
 
     async def close(self) -> None:
         # engine.dispose() must run even if the gateway teardown above raises or is
