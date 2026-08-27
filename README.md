@@ -1,10 +1,16 @@
 # Discord bot template
 
+A starting point for a `discord.py` bot with an async SQLAlchemy database layer,
+cog-based commands, structured logging and graceful shutdown.
+
 ## Features
 
 - Using `uv` as the python virtual environment manager, written in `rust`!
 - Using `discord.py` as the discord bot framework
 - Using `sqlalchemy` for ORM database
+- Slash commands organised into cogs, auto-loaded from `cogs/`
+- Rotating file + console logs, and a shutdown path that closes the gateway and
+  disposes the database engine on `SIGINT` / `SIGTERM`
 
 ## Setup
 
@@ -13,12 +19,202 @@ git clone https://github.com/xDDoubleTea/Dc-py-bot-tmpl
 cd Dc-py-bot-tmpl
 uv sync
 
-# Unix like
-source .venv/bin/activate
-# If you are on windows:
-source .\.venv\bin\activate.bat
-
 # Remember to copy the .env.example to .env and fill in your bot token and the database url
 
 uv run main.py
 ```
+
+Run `main.py` from the repository root: cogs are discovered with a relative path,
+and the default SQLite file lives at `./db/test.db`.
+
+Before the first run, set your own IDs in `config/constants.py`:
+
+| Name | Meaning |
+| --- | --- |
+| `command_prefix` | Prefix for the text commands in `cogs/admin.py` |
+| `MY_GUILD` | Guild that slash commands are synced to on startup |
+| `DEV_ID` | Your user ID, used by the `is_me_command` / `is_me_app_command` checks |
+
+`.env` holds the secrets:
+
+| Variable | Meaning |
+| --- | --- |
+| `BOT_TOKEN` | Your bot's token |
+| `DATABASE_URL` | SQLAlchemy async URL, e.g. `sqlite+aiosqlite:///./db/test.db` |
+
+`DATABASE_URL` must name an async driver (`sqlite+aiosqlite`, `postgresql+asyncpg`),
+since the engine is created with `create_async_engine`.
+
+## Layout
+
+```
+cogs/       commands, one cog per file, loaded automatically at startup
+config/     constants, secrets, logging setup
+db/         Base, models, and the session manager
+utils/      permission checks and Discord object helpers
+logs/       bot.log and sqlalchemy.log, rotated at midnight, 7 days kept
+```
+
+## Using the database
+
+`MyBot.setup_hook` creates one `AsyncDatabaseManager` and stores it on the bot, so
+every cog reaches it through `self.bot.database_manager`. It is an async context
+manager that hands out a session:
+
+```python
+async with self.bot.database_manager as session:
+    await session.execute(statement)
+```
+
+Leaving the block commits, or rolls back if the body raised, and closes the
+session either way. Sessions are tracked per asyncio task, so commands running
+concurrently each get their own.
+
+The sessionmaker uses `expire_on_commit=False`, so model instances loaded inside
+the block are still readable after it.
+
+### Adding a model
+
+Define it against `Base` in `db/example.py` (or a new module in `db/`):
+
+```python
+from sqlalchemy import BigInteger, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from db.base import Base
+
+
+class MyModel(Base):
+    __tablename__ = "my_table"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64))
+```
+
+Use `BigInteger` for Discord IDs, which do not fit in a 32-bit `INTEGER`.
+
+If the model lives in a new module, import it in `main.py` next to the existing
+model imports. `Base.metadata.create_all` only creates tables for models that have
+been imported by the time it runs.
+
+Tables are created at startup and there is no migration tool, so changing a model
+means deleting `db/test.db` and letting it be recreated.
+
+## Example: the settings cog
+
+`cogs/settings.py` is a worked example of the patterns above: a per-guild
+key/value store backed by the `guild_settings` table, with the primary key on
+`(guild_id, key)`.
+
+| Command | What it does | Pattern it shows |
+| --- | --- | --- |
+| `/settings set <key> <value>` | Saves a value for this server | SQLite upsert, so setting the same key twice updates it |
+| `/settings get <key>` | Shows one setting | Single-row `select` with `session.scalar` |
+| `/settings list` | Shows every setting for this server | Multi-row `session.scalars`, rendered as an embed |
+| `/settings reset [key]` | Deletes one setting, or all of them | `delete()` and reading `result.rowcount` |
+
+All four are administrator-only through `is_administrator()` from `utils/checks.py`,
+and share an error handler that replies to `UserNotAdministrator`.
+
+The keys live in the `SETTING_KEYS` dict at the top of the file, which drives the
+autocomplete choices and records how each value is displayed. Channel and role
+settings store the object's ID and resolve it on read with `try_get_channel` /
+`try_get_role` from `utils/discord_utils.py`, so a renamed channel keeps working.
+
+To add a setting, add an entry to `SETTING_KEYS`:
+
+```python
+SETTING_KEYS: dict[str, str] = {
+    "welcome_channel": "channel",
+    "log_channel": "channel",
+    "mod_role": "role",
+    "greeting": "text",
+    "report_channel": "channel",  # new
+}
+```
+
+Delete `cogs/settings.py` and the `GuildSetting` model once you no longer need the
+example.
+
+## Writing a cog
+
+Every file in `cogs/` ending in `.py` is loaded at startup. A cog looks like:
+
+```python
+import logging
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+from main import MyBot
+
+logger = logging.getLogger(__name__)
+
+
+class MyCog(commands.Cog):
+    def __init__(self, bot: MyBot):
+        self.bot = bot
+
+    @app_commands.command(name="hello", description="Say hello")
+    async def hello(self, interaction: discord.Interaction):
+        await interaction.response.send_message("Hello!")
+
+
+async def setup(bot: MyBot) -> None:
+    await bot.add_cog(MyCog(bot))
+```
+
+`cogs/admin.py` provides owner-only text commands to `>load`, `>unload` and
+`>reload` cogs while the bot is running, plus `>sync_app_commands` to re-sync the
+command tree.
+
+`cogs/help.py` builds `/help` from the command tree. Mark a command as
+`extras={"hidden": True}` to keep it out of that listing.
+
+### Permission checks
+
+`utils/checks.py` provides:
+
+| Check | Applies to | Raises |
+| --- | --- | --- |
+| `is_me_command()` | Text commands | `IsNotDev` |
+| `is_me_app_command()` | Slash commands | `IsNotDev` |
+| `is_administrator()` | Slash commands | `UserNotAdministrator` |
+
+`is_administrator()` allows the bot owner and any guild administrator, and denies
+in DMs. Both exceptions carry a `.message` to reply with; give each guarded
+command an `.error` handler, as `cogs/settings.py` does.
+
+## Logging
+
+`setup_logger` writes to the console and to `logs/bot.log`, rotating at midnight
+and keeping 7 days. SQL statements go to `logs/sqlalchemy.log` separately. Get a
+logger in any module with `logging.getLogger(__name__)`.
+
+The log level follows `debug` in `config/secrets.py`, which also switches on SQL
+echoing for the engine.
+
+## Roadmap
+
+Ideas for building on the template:
+
+- **Migrations** — add `alembic` so model changes do not mean deleting the
+  database.
+- **Postgres** — swap `DATABASE_URL` to `postgresql+asyncpg://...` and add
+  `asyncpg`. The upsert in `cogs/settings.py` is SQLite-specific and becomes
+  `sqlalchemy.dialects.postgresql.insert`.
+- **A repository layer** — move queries out of the cogs into modules under `db/`,
+  so commands call `get_setting(guild_id, key)` instead of building statements.
+- **A global error handler** — `bot.tree.on_error` for slash commands and
+  `on_command_error` for text commands, replacing the per-command handlers.
+- **Guild-aware settings** — read `guild_settings` from a listener, for example a
+  welcome message posted to the stored `welcome_channel` on `on_member_join`.
+- **Global command sync** — `setup_hook` syncs to `MY_GUILD` for instant updates
+  while developing; sync globally once the bot is in more than one server.
+- **Caching** — keep hot settings in memory and invalidate on write, to avoid a
+  query per command.
+- **Tests** — run the cogs against an in-memory
+  `sqlite+aiosqlite:///:memory:` engine.
+- **Deployment** — a `systemd` unit or container image. `SIGTERM` is already
+  handled, so a supervisor can stop the bot cleanly.
