@@ -14,13 +14,14 @@ The session comes from `self.bot.database_manager`, which commits when the
 """
 
 import logging
-from typing import Sequence
+import re
+from typing import Any, Sequence, cast
 
 import discord
 from discord import Interaction, app_commands
 from discord.app_commands.errors import AppCommandError
 from discord.ext import commands
-from sqlalchemy import delete, select
+from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_upsert
 
 from db.example import GuildSetting
@@ -44,6 +45,22 @@ SETTING_KEYS: dict[str, str] = {
 
 KEY_CHOICES = [app_commands.Choice(name=key, value=key) for key in SETTING_KEYS]
 
+# What Discord sends when a user picks a channel or role out of the autocomplete:
+# the mention form, e.g. <#1245973831190056991> or <@&123...>.
+CHANNEL_MENTION = re.compile(r"<#(\d+)>")
+ROLE_MENTION = re.compile(r"<@&(\d+)>")
+
+# db.example.GuildSetting.value is String(512).
+MAX_VALUE_LENGTH = 512
+
+
+class InvalidSettingValue(Exception):
+    """Raised when a value cannot be stored for a key; the message is shown to the user."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
+
 
 class Settings(commands.Cog):
     def __init__(self, bot: MyBot):
@@ -56,6 +73,56 @@ class Settings(commands.Cog):
         guild_only=True,
     )
 
+    async def _parse_value(
+        self, guild: discord.Guild, key: str, raw: str
+    ) -> str:
+        """
+        Turn what the user typed into the value to store, or raise
+        InvalidSettingValue with a message explaining what went wrong.
+
+        Validating here rather than at read time means the table only ever holds
+        values that resolve, and the user finds out immediately.
+        """
+        raw = raw.strip()
+        kind = SETTING_KEYS.get(key, "text")
+
+        if kind == "text":
+            if len(raw) == 0:
+                raise InvalidSettingValue(f"`{key}` cannot be set to an empty value.")
+            if len(raw) > MAX_VALUE_LENGTH:
+                raise InvalidSettingValue(
+                    f"That value is {len(raw)} characters long; "
+                    f"`{key}` holds at most {MAX_VALUE_LENGTH}."
+                )
+            return raw
+
+        # Channels and roles are stored as IDs. Accept the mention Discord inserts
+        # when the user picks one from autocomplete, or a raw ID pasted by hand.
+        pattern = CHANNEL_MENTION if kind == "channel" else ROLE_MENTION
+        match = pattern.fullmatch(raw)
+        if match is not None:
+            object_id = int(match.group(1))
+        elif raw.isdigit():
+            object_id = int(raw)
+        else:
+            raise InvalidSettingValue(
+                f"`{key}` expects a {kind}. "
+                f"Mention one (like {'#channel-name' if kind == 'channel' else '@role-name'}) "
+                f"or paste its ID."
+            )
+
+        if kind == "channel":
+            resolved = await try_get_channel(guild, object_id)
+        else:
+            resolved = await try_get_role(guild, object_id)
+
+        if resolved is None:
+            raise InvalidSettingValue(
+                f"No {kind} with ID `{object_id}` exists in this server."
+            )
+
+        return str(object_id)
+
     async def _render(self, guild: discord.Guild, key: str, value: str) -> str:
         """Turn a stored value back into something readable in Discord."""
         kind = SETTING_KEYS.get(key, "text")
@@ -67,7 +134,12 @@ class Settings(commands.Cog):
         try:
             object_id = int(value)
         except ValueError:
-            return f"invalid value: `{value}`"
+            # /settings set validates before writing, so this only shows up for rows
+            # written by an older version or edited outside the bot.
+            logger.warning(
+                f"Guild {guild.id} has a non-numeric value stored for `{key}`: {value!r}"
+            )
+            return f"unreadable value: `{value}`"
 
         if kind == "channel":
             channel = await try_get_channel(guild, object_id)
@@ -83,7 +155,7 @@ class Settings(commands.Cog):
     @group.command(name="set", description="Save a setting for this server")
     @app_commands.describe(
         key="Which setting to change",
-        value="The new value. For channel/role settings, mention the channel or role.",
+        value="The new value. For channel/role settings, mention it or paste its ID.",
     )
     @app_commands.choices(key=KEY_CHOICES)
     @is_administrator()
@@ -92,15 +164,22 @@ class Settings(commands.Cog):
     ) -> None:
         assert interaction.guild is not None  # guaranteed by guild_only=True
 
+        # Nothing is written unless the value is valid for this key.
+        try:
+            stored = await self._parse_value(interaction.guild, key.value, value)
+        except InvalidSettingValue as error:
+            await interaction.response.send_message(error.message, ephemeral=True)
+            return
+
         # An INSERT alone would fail the second time a key is set, because
         # (guild_id, key) is the primary key. The upsert tells SQLite to overwrite the
         # existing row's value instead of raising, which makes the command idempotent.
         statement = (
             sqlite_upsert(GuildSetting)
-            .values(guild_id=interaction.guild.id, key=key.value, value=value)
+            .values(guild_id=interaction.guild.id, key=key.value, value=stored)
             .on_conflict_do_update(
                 index_elements=[GuildSetting.guild_id, GuildSetting.key],
-                set_={"value": value},
+                set_={"value": stored},
             )
         )
 
@@ -108,7 +187,7 @@ class Settings(commands.Cog):
             await session.execute(statement)
         # The commit happened on the way out of the block above.
 
-        rendered = await self._render(interaction.guild, key.value, value)
+        rendered = await self._render(interaction.guild, key.value, stored)
         await interaction.response.send_message(f"Set `{key.value}` to {rendered}.")
 
     @group.command(name="get", description="Show one of this server's settings")
@@ -192,10 +271,12 @@ class Settings(commands.Cog):
 
         deleted = 0
         async with self.bot.database_manager as session:
-            result = (await session.execute(statement)).all()
+            # session.execute() is typed as returning Result, which has no rowcount;
+            # a DML statement gives back a CursorResult at runtime.
+            result = cast(CursorResult[Any], await session.execute(statement))
             # rowcount is read inside the block, while the result is still attached
             # to the live session.
-            deleted = result.count
+            deleted = result.rowcount
 
         logger.info(
             f"Reset {deleted} setting(s) for guild {interaction.guild.id} "

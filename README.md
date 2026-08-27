@@ -117,9 +117,16 @@ All four are administrator-only through `is_administrator()` from `utils/checks.
 and share an error handler that replies to `UserNotAdministrator`.
 
 The keys live in the `SETTING_KEYS` dict at the top of the file, which drives the
-autocomplete choices and records how each value is displayed. Channel and role
-settings store the object's ID and resolve it on read with `try_get_channel` /
+autocomplete choices and records the type of each value. Channel and role settings
+store the object's ID and resolve it on read with `try_get_channel` /
 `try_get_role` from `utils/discord_utils.py`, so a renamed channel keeps working.
+
+`/settings set` validates the value against the key's type before writing, so the
+table only holds values that resolve. Channel and role keys accept a mention or a
+raw ID and check that the object exists in the server; text keys are checked
+against the column's 512-character limit. A value that fails raises
+`InvalidSettingValue`, and the command replies with the reason as an ephemeral
+message without touching the database.
 
 To add a setting, add an entry to `SETTING_KEYS`:
 
