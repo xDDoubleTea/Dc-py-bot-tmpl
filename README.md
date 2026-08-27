@@ -1,5 +1,7 @@
 # Discord bot template
 
+[![CI](https://github.com/xDDoubleTea/Dc-py-bot-tmpl/actions/workflows/ci.yml/badge.svg)](https://github.com/xDDoubleTea/Dc-py-bot-tmpl/actions/workflows/ci.yml)
+
 A starting point for a `discord.py` bot with an async SQLAlchemy database layer,
 cog-based commands, structured logging and graceful shutdown.
 
@@ -217,6 +219,22 @@ generic reply.
 
 `IsNotDev` inherits from both `CommandError` and `AppCommandError`, since only
 `AppCommandError` subclasses reach `CommandTree.on_error`.
+
+## Development
+
+Run this before pushing; CI runs the same three commands and fails on any of
+them:
+
+```bash
+uv run ruff format .
+uv run ruff check --fix .
+uv run pytest
+```
+
+`ruff format` owns line length, `ruff check` covers the rule set in
+`pyproject.toml`, and the tests live in `tests/`. Tests use an in-memory
+database and stubbed Discord objects, so none of them need a bot token or a
+gateway connection.
 
 ## Logging
 
