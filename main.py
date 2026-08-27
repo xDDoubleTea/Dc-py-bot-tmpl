@@ -1,10 +1,15 @@
-import discord
+import asyncio
 import logging
+import os
+import signal
+
+import discord
 from discord.ext import commands
 from sqlalchemy.ext.asyncio import create_async_engine
-from config.constants import command_prefix, MY_GUILD
-from config.secrets import bot_token, DATABASE_URL
-import asyncio
+
+from config.constants import MY_GUILD, command_prefix
+from config.logger import setup_logger
+from config.secrets import DATABASE_URL, bot_token, debug
 from db.async_db_manager import AsyncDatabaseManager
 from db.base import Base
 
@@ -12,11 +17,7 @@ from db.base import Base
 # they are not registered on the metadata yet and no tables get created. The cogs
 # import them too, but that happens later, inside setup_hook().
 from db.example import GuildSetting, User  # noqa: F401
-from config.secrets import debug
-from config.logger import setup_logger
 from utils.error_handlers import ErrorHandlingTree, handle_command_error
-import signal
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class MyBot(commands.Bot):
         for cog in os.listdir("cogs"):
             if cog.endswith(".py"):
                 await self.load_extension(f"cogs.{cog[:-3]}")
-                
+
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 

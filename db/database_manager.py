@@ -37,5 +37,5 @@ class DatabaseManager:
         except AssertionError:
             print("Database connection or cursor was not initialized correctly.")
             return True
-        finally:
-            return False
+
+        return False

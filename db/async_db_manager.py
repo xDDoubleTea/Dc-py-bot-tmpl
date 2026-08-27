@@ -44,7 +44,7 @@ class AsyncDatabaseManager:
             logger.error("Database connection error", exc_info=e)
             raise
 
-        _session_stack.set(_session_stack.get() + (session,))
+        _session_stack.set((*_session_stack.get(), session))
         return session
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:

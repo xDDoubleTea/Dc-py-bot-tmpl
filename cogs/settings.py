@@ -18,7 +18,8 @@ handler in utils/error_handlers.py, so there is no per-command .error handler he
 
 import logging
 import re
-from typing import Any, Sequence, cast
+from collections.abc import Sequence
+from typing import Any, cast
 
 import discord
 from discord import Interaction, app_commands
@@ -75,9 +76,7 @@ class Settings(commands.Cog):
         guild_only=True,
     )
 
-    async def _parse_value(
-        self, guild: discord.Guild, key: str, raw: str
-    ) -> str:
+    async def _parse_value(self, guild: discord.Guild, key: str, raw: str) -> str:
         """
         Turn what the user typed into the value to store, or raise
         InvalidSettingValue with a message explaining what went wrong.
@@ -249,9 +248,7 @@ class Settings(commands.Cog):
             color=discord.Color.blue(),
         )
         for setting in settings:
-            rendered = await self._render(
-                interaction.guild, setting.key, setting.value
-            )
+            rendered = await self._render(interaction.guild, setting.key, setting.value)
             embed.add_field(name=setting.key, value=rendered, inline=False)
 
         await interaction.response.send_message(embed=embed)

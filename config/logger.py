@@ -9,8 +9,7 @@ def setup_logger(log_level: int = logging.INFO):
     log_dir = LOG_DIR
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    
-    
+
     console_handler = logging.StreamHandler()
 
     file_handler = logging.handlers.TimedRotatingFileHandler(
@@ -34,7 +33,6 @@ def setup_logger(log_level: int = logging.INFO):
     noisy_loggers = ["discord", "discord.http", "discord.gateway", "urllib3", "asyncio"]
     for logger_name in noisy_loggers:
         logging.getLogger(logger_name).setLevel(logging.INFO)
-
 
     db_logger = logging.getLogger("sqlalchemy.engine")
     db_logger.setLevel(logging.WARNING)

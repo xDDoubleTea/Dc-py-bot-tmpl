@@ -1,12 +1,12 @@
+import discord
 from discord import TextChannel
 from discord.ext import commands
-import discord
-from discord.ext.commands import Context, Cog, ExtensionNotFound
-from discord.ext.commands import ExtensionFailed
+from discord.ext.commands import Cog, Context, ExtensionFailed, ExtensionNotFound
 from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
     ExtensionNotLoaded,
 )
+
 from utils.checks import is_me_command
 
 
@@ -27,8 +27,6 @@ class admin(Cog):
             await ctx.send(f"{ext_name} is not a legal extension name!")
         else:
             await ctx.send(f"{ext_name} has been successfully loaded!")
-        finally:
-            return None
 
     @commands.command(name="unload", hidden=True)
     @is_me_command()
@@ -47,8 +45,6 @@ class admin(Cog):
             await ctx.send(f"{ext_name} is not a legal extension name!")
         else:
             await ctx.send(f"{ext_name} has been successfully unloaded!")
-        finally:
-            return None
 
     @commands.command(name="reload", hidden=True)
     @is_me_command()
@@ -61,8 +57,6 @@ class admin(Cog):
             await ctx.send(f"{ext_name} is not a legal extension name!")
         else:
             await ctx.send(f"{ext_name} has been successfully reloaded!")
-        finally:
-            return None
 
     @commands.command(name="ext_list", hidden=True)
     @is_me_command()

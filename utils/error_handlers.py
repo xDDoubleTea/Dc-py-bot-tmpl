@@ -55,9 +55,7 @@ def app_command_message(error: AppCommandError) -> str | None:
 class ErrorHandlingTree(app_commands.CommandTree):
     """A command tree that replies to the user instead of failing silently."""
 
-    async def on_error(
-        self, interaction: Interaction, error: AppCommandError
-    ) -> None:
+    async def on_error(self, interaction: Interaction, error: AppCommandError) -> None:
         command = interaction.command.qualified_name if interaction.command else "?"
 
         message = app_command_message(error)
@@ -65,9 +63,7 @@ class ErrorHandlingTree(app_commands.CommandTree):
             # CommandInvokeError wraps whatever the command body raised; the cause
             # is what is worth reading in the log.
             cause = error.__cause__ if isinstance(error, CommandInvokeError) else error
-            logger.exception(
-                f"Unhandled error in /{command}", exc_info=cause or error
-            )
+            logger.exception(f"Unhandled error in /{command}", exc_info=cause or error)
             message = UNEXPECTED_MESSAGE
         else:
             logger.info(f"/{command} refused for {interaction.user.id}: {message}")
