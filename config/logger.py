@@ -7,8 +7,8 @@ def setup_logger(log_level: int = logging.INFO):
     log_dir = "logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    logger = logging.getLogger("LeetCodeBot")
-    logger.setLevel(log_level)
+    
+    
     console_handler = logging.StreamHandler()
 
     file_handler = logging.handlers.TimedRotatingFileHandler(
@@ -26,9 +26,13 @@ def setup_logger(log_level: int = logging.INFO):
     )
     console_handler.setFormatter(formatter)
     file_handler.setFormatter(formatter)
-    if not logger.hasHandlers():
-        logger.addHandler(console_handler)
-        logger.addHandler(file_handler)
+
+    logging.basicConfig(level=log_level, handlers=[console_handler, file_handler])
+
+    noisy_loggers = ["discord", "discord.http", "discord.gateway", "urllib3", "asyncio"]
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.INFO)
+
 
     db_logger = logging.getLogger("sqlalchemy.engine")
     db_logger.setLevel(logging.WARNING)
