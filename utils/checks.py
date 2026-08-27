@@ -14,9 +14,13 @@ class UserNotAdministrator(AppCommandError):
         super().__init__(self.message)
 
 
-class IsNotDev(CommandError):
+class IsNotDev(CommandError, AppCommandError):
     """
     Custom exception raised when a user is not a dev (i.e., not me)
+
+    It inherits from both error types because is_me_command() raises it from a
+    prefix command and is_me_app_command() from a slash command. Only
+    AppCommandError subclasses reach CommandTree.on_error.
     """
 
     def __init__(self, message: str = "還想偷用奇怪的指令阿"):
