@@ -27,6 +27,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
+ignore = ["E501", "RUF001"]
 
 [dependency-groups]
 dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.0", "ruff>=0.16.4"]
@@ -41,4 +42,3 @@ testpaths = ["tests"]
 # Source - https://stackoverflow.com/a/51633600
 # Posted by hoefling, modified by community. See post 'Timeline' for change history
 # Retrieved 2026-06-11, License - CC BY-SA 4.0
-
