@@ -2,9 +2,11 @@ import logging
 import logging.handlers
 import os
 
+from config.constants import LOG_DIR
+
 
 def setup_logger(log_level: int = logging.INFO):
-    log_dir = "logs"
+    log_dir = LOG_DIR
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     
