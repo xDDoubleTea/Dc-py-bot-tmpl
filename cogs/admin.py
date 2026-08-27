@@ -1,14 +1,13 @@
+import discord
 from discord import TextChannel
 from discord.ext import commands
-import discord
-from discord.ext.commands import Context, Cog, ExtensionNotFound
-from discord.ext.commands.core import ExtensionFailed
+from discord.ext.commands import Cog, Context, ExtensionFailed, ExtensionNotFound
 from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
     ExtensionNotLoaded,
-    CommandError,
 )
-from utils.checks import is_me_command, IsNotDev
+
+from utils.checks import is_me_command
 
 
 class admin(Cog):
@@ -28,8 +27,6 @@ class admin(Cog):
             await ctx.send(f"{ext_name} is not a legal extension name!")
         else:
             await ctx.send(f"{ext_name} has been successfully loaded!")
-        finally:
-            return None
 
     @commands.command(name="unload", hidden=True)
     @is_me_command()
@@ -48,8 +45,6 @@ class admin(Cog):
             await ctx.send(f"{ext_name} is not a legal extension name!")
         else:
             await ctx.send(f"{ext_name} has been successfully unloaded!")
-        finally:
-            return None
 
     @commands.command(name="reload", hidden=True)
     @is_me_command()
@@ -62,8 +57,6 @@ class admin(Cog):
             await ctx.send(f"{ext_name} is not a legal extension name!")
         else:
             await ctx.send(f"{ext_name} has been successfully reloaded!")
-        finally:
-            return None
 
     @commands.command(name="ext_list", hidden=True)
     @is_me_command()
@@ -91,26 +84,6 @@ class admin(Cog):
             return
         else:
             return
-
-    @load.error
-    async def load_error(self, ctx: Context, error: CommandError):
-        if isinstance(error, IsNotDev):
-            await ctx.send(error.message)
-
-    @unload.error
-    async def unload_error(self, ctx: Context, error: CommandError):
-        if isinstance(error, IsNotDev):
-            await ctx.send(error.message)
-
-    @reload.error
-    async def reload_error(self, ctx: Context, error: CommandError):
-        if isinstance(error, IsNotDev):
-            await ctx.send(error.message)
-
-    @ext_list.error
-    async def ext_list_error(self, ctx: Context, error: CommandError):
-        if isinstance(error, IsNotDev):
-            await ctx.send(error.message)
 
 
 async def setup(client):

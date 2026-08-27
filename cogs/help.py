@@ -1,7 +1,9 @@
-from discord.ext import commands
-import discord
 import logging
+
+import discord
 from discord import app_commands
+from discord.ext import commands
+
 from main import MyBot
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,7 @@ class HelpCog(commands.Cog):
     def help_embed(self) -> discord.Embed:
         embed = discord.Embed(
             title="Help - Available Commands",
-            description="Here are the available commands for the LeetCode Bot:",
+            description="Here are the available commands for Bot:",
             color=discord.Color.blue(),
         )
         all_slash_cmds = self.bot.tree.get_commands(

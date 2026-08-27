@@ -1,10 +1,15 @@
-import discord
+import asyncio
 import logging
+import os
+import signal
+
+import discord
 from discord.ext import commands
 from sqlalchemy.ext.asyncio import create_async_engine
-from config.constants import command_prefix, MY_GUILD
-from config.secrets import bot_token, DATABASE_URL
-import asyncio
+
+from config.constants import MY_GUILD, command_prefix
+from config.logger import setup_logger
+from config.secrets import DATABASE_URL, bot_token, debug
 from db.async_db_manager import AsyncDatabaseManager
 from db.base import Base
 
@@ -12,10 +17,7 @@ from db.base import Base
 # they are not registered on the metadata yet and no tables get created. The cogs
 # import them too, but that happens later, inside setup_hook().
 from db.example import GuildSetting, User  # noqa: F401
-from config.secrets import debug
-from config.logger import setup_logger
-import signal
-import os
+from utils.error_handlers import ErrorHandlingTree, handle_command_error
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,11 @@ intents = discord.Intents.all()
 
 class MyBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix=command_prefix, intents=intents)
+        super().__init__(
+            command_prefix=command_prefix,
+            intents=intents,
+            tree_cls=ErrorHandlingTree,
+        )
 
         self.engine = create_async_engine(
             DATABASE_URL, echo=debug, hide_parameters=True
@@ -41,9 +47,14 @@ class MyBot(commands.Bot):
         for cog in os.listdir("cogs"):
             if cog.endswith(".py"):
                 await self.load_extension(f"cogs.{cog[:-3]}")
-                
+
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
+
+    async def on_command_error(
+        self, ctx: commands.Context, error: commands.CommandError
+    ) -> None:
+        await handle_command_error(ctx, error)
 
     async def close(self) -> None:
         # engine.dispose() must run even if the gateway teardown above raises or is

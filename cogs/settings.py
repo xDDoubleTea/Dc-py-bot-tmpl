@@ -11,22 +11,25 @@ Every command here demonstrates one SQL pattern you will need in a real bot:
 
 The session comes from `self.bot.database_manager`, which commits when the
 `async with` block exits normally and rolls back if the body raises.
+
+Failed permission checks and unexpected exceptions are answered by the global
+handler in utils/error_handlers.py, so there is no per-command .error handler here.
 """
 
 import logging
 import re
-from typing import Any, Sequence, cast
+from collections.abc import Sequence
+from typing import Any, cast
 
 import discord
 from discord import Interaction, app_commands
-from discord.app_commands.errors import AppCommandError
 from discord.ext import commands
 from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_upsert
 
 from db.example import GuildSetting
 from main import MyBot
-from utils.checks import UserNotAdministrator, is_administrator
+from utils.checks import is_administrator
 from utils.discord_utils import try_get_channel, try_get_role
 
 logger = logging.getLogger(__name__)
@@ -73,9 +76,7 @@ class Settings(commands.Cog):
         guild_only=True,
     )
 
-    async def _parse_value(
-        self, guild: discord.Guild, key: str, raw: str
-    ) -> str:
+    async def _parse_value(self, guild: discord.Guild, key: str, raw: str) -> str:
         """
         Turn what the user typed into the value to store, or raise
         InvalidSettingValue with a message explaining what went wrong.
@@ -247,9 +248,7 @@ class Settings(commands.Cog):
             color=discord.Color.blue(),
         )
         for setting in settings:
-            rendered = await self._render(
-                interaction.guild, setting.key, setting.value
-            )
+            rendered = await self._render(interaction.guild, setting.key, setting.value)
             embed.add_field(name=setting.key, value=rendered, inline=False)
 
         await interaction.response.send_message(embed=embed)
@@ -286,26 +285,6 @@ class Settings(commands.Cog):
         await interaction.response.send_message(
             f"Deleted {deleted} row(s) for {target}."
         )
-
-    # The is_administrator() check raises UserNotAdministrator, an AppCommandError.
-    # Without a handler discord.py logs it as an unhandled exception and the user just
-    # sees the interaction fail, so every guarded command gets one.
-    @set_setting.error
-    @get_setting.error
-    @list_settings.error
-    @reset_settings.error
-    async def on_settings_error(
-        self, interaction: Interaction, error: AppCommandError
-    ) -> None:
-        if isinstance(error, UserNotAdministrator):
-            await interaction.response.send_message(error.message, ephemeral=True)
-            return
-
-        logger.exception("Unhandled error in the settings cog", exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(
-                "Something went wrong running that command.", ephemeral=True
-            )
 
 
 async def setup(bot: MyBot) -> None:

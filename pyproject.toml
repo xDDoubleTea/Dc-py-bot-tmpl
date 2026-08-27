@@ -5,10 +5,40 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aiosqlite>=0.20.0",
-    "discord-py>=2.6.4",
-    "dotenv>=0.9.9",
-    "flask>=3.1.2",
-    "flask-sqlalchemy>=3.1.1",
-    "sqlalchemy>=2.0.44",
+        "aiosqlite>=0.20.0",
+        "discord-py>=2.6.4",
+        "dotenv>=0.9.9",
+        "sqlalchemy>=2.0.44",
 ]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+target-version = "py313"
+
+[tool.ruff.format]
+quote-style = "double"
+
+indent-style = "space"
+
+skip-magic-trailing-comma = false
+
+line-ending = "auto"
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
+ignore = ["E501", "RUF001"]
+
+[dependency-groups]
+dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.0", "ruff>=0.16.4"]
+
+[tool.pytest.ini_options]
+# "auto" means async test functions run without an explicit @pytest.mark.asyncio.
+asyncio_mode = "auto"
+# Put the repository root on sys.path so tests can import main, cogs, db and utils.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+# Source - https://stackoverflow.com/a/51633600
+# Posted by hoefling, modified by community. See post 'Timeline' for change history
+# Retrieved 2026-06-11, License - CC BY-SA 4.0

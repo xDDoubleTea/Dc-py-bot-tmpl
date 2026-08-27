@@ -34,6 +34,7 @@ Before the first run, set your own IDs in `config/constants.py`:
 | `command_prefix` | Prefix for the text commands in `cogs/admin.py` |
 | `MY_GUILD` | Guild that slash commands are synced to on startup |
 | `DEV_ID` | Your user ID, used by the `is_me_command` / `is_me_app_command` checks |
+| `LOG_DIR` | Directory for `bot.log` and `sqlalchemy.log` |
 
 `.env` holds the secrets:
 
@@ -41,6 +42,7 @@ Before the first run, set your own IDs in `config/constants.py`:
 | --- | --- |
 | `BOT_TOKEN` | Your bot's token |
 | `DATABASE_URL` | SQLAlchemy async URL, e.g. `sqlite+aiosqlite:///./db/test.db` |
+| `DEBUG` | `True` for debug logging and SQL echo; anything else is off |
 
 `DATABASE_URL` must name an async driver (`sqlite+aiosqlite`, `postgresql+asyncpg`),
 since the engine is created with `create_async_engine`.
@@ -51,8 +53,8 @@ since the engine is created with `create_async_engine`.
 cogs/       commands, one cog per file, loaded automatically at startup
 config/     constants, secrets, logging setup
 db/         Base, models, and the session manager
-utils/      permission checks and Discord object helpers
-logs/       bot.log and sqlalchemy.log, rotated at midnight, 7 days kept
+utils/      permission checks, error handlers, and Discord object helpers
+logs/       bot.log and sqlalchemy.log, rotated at midnight, 7 days kept (see LOG_DIR)
 ```
 
 ## Using the database
@@ -113,8 +115,9 @@ key/value store backed by the `guild_settings` table, with the primary key on
 | `/settings list` | Shows every setting for this server | Multi-row `session.scalars`, rendered as an embed |
 | `/settings reset [key]` | Deletes one setting, or all of them | `delete()` and reading `result.rowcount` |
 
-All four are administrator-only through `is_administrator()` from `utils/checks.py`,
-and share an error handler that replies to `UserNotAdministrator`.
+All four are administrator-only through `is_administrator()` from `utils/checks.py`.
+A refused check is answered by the global error handler, so the cog carries no
+error handling of its own.
 
 The keys live in the `SETTING_KEYS` dict at the top of the file, which drives the
 autocomplete choices and records the type of each value. Channel and role settings
@@ -190,17 +193,40 @@ command tree.
 | `is_administrator()` | Slash commands | `UserNotAdministrator` |
 
 `is_administrator()` allows the bot owner and any guild administrator, and denies
-in DMs. Both exceptions carry a `.message` to reply with; give each guarded
-command an `.error` handler, as `cogs/settings.py` does.
+in DMs. Both exceptions carry a `.message`, which the global error handler replies
+with, so a guarded command needs no handler of its own.
+
+## Error handling
+
+`utils/error_handlers.py` answers errors from both command families:
+
+- `ErrorHandlingTree`, passed to the bot as `tree_cls`, handles slash commands
+- `handle_command_error`, wired up as `MyBot.on_command_error`, handles text commands
+
+Failed checks, cooldowns and missing permissions get a specific reply, ephemeral
+for slash commands. Anything else is logged with a traceback and answered with a
+generic message. `CommandNotFound` is ignored, so a mistyped prefix stays quiet.
+
+Add a per-command `.error` handler only when a command needs a reply of its own;
+otherwise it is handled for you.
+
+To add a case, extend `app_command_message` for slash commands or the chain in
+`handle_command_error` for text commands. Returning `None` from
+`app_command_message` marks the error as a bug, which logs it and sends the
+generic reply.
+
+`IsNotDev` inherits from both `CommandError` and `AppCommandError`, since only
+`AppCommandError` subclasses reach `CommandTree.on_error`.
 
 ## Logging
 
-`setup_logger` writes to the console and to `logs/bot.log`, rotating at midnight
-and keeping 7 days. SQL statements go to `logs/sqlalchemy.log` separately. Get a
-logger in any module with `logging.getLogger(__name__)`.
+`setup_logger` writes to the console and to `bot.log`, rotating at midnight and
+keeping 7 days. SQL statements go to `sqlalchemy.log` separately. Both live in the
+directory named by `LOG_DIR` in `config/constants.py`. Get a logger in any module
+with `logging.getLogger(__name__)`.
 
-The log level follows `debug` in `config/secrets.py`, which also switches on SQL
-echoing for the engine.
+The log level follows `debug` in `config/secrets.py`, read from the `DEBUG`
+environment variable, which also switches on SQL echoing for the engine.
 
 ## Roadmap
 
@@ -213,8 +239,6 @@ Ideas for building on the template:
   `sqlalchemy.dialects.postgresql.insert`.
 - **A repository layer** — move queries out of the cogs into modules under `db/`,
   so commands call `get_setting(guild_id, key)` instead of building statements.
-- **A global error handler** — `bot.tree.on_error` for slash commands and
-  `on_command_error` for text commands, replacing the per-command handlers.
 - **Guild-aware settings** — read `guild_settings` from a listener, for example a
   welcome message posted to the stored `welcome_channel` on `on_member_join`.
 - **Global command sync** — `setup_hook` syncs to `MY_GUILD` for instant updates
