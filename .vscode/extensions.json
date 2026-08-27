@@ -1,0 +1,20 @@
+{
+  // Extensions VS Code will offer to install when this repository is opened.
+  "recommendations": [
+    // Lint and format with the same ruff configuration CI uses.
+    "charliermarsh.ruff",
+    // Python language support, type checking, and the test explorer.
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+    // Schema validation for pyproject.toml.
+    "tamasfe.even-better-toml",
+    // Runs and validates .github/workflows/ci.yml from the editor.
+    "github.vscode-github-actions"
+  ],
+  "unwantedRecommendations": [
+    // Ruff sorts imports via its "I" rules; running isort as well means two
+    // tools rewriting the same lines on save.
+    "ms-python.isort"
+  ]
+}
