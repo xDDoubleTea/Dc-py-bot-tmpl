@@ -2,9 +2,11 @@ from discord.ext import commands
 import discord
 from discord import app_commands
 
+from main import MyBot
+
 
 class General(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: MyBot):
         self.bot = bot
         self.database_manager = bot.database_manager
 
@@ -14,5 +16,5 @@ class General(commands.Cog):
         await interaction.response.send_message(f"Pong! Latency: {round(latency)} ms")
 
 
-async def setup(bot: commands.Bot) -> None:
+async def setup(bot: MyBot) -> None:
     await bot.add_cog(General(bot))

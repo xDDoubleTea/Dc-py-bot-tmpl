@@ -1,14 +1,15 @@
 from discord.ext import commands
 import discord
+import logging
 from discord import app_commands
 from main import MyBot
+
+logger = logging.getLogger(__name__)
 
 
 class HelpCog(commands.Cog):
     def __init__(self, bot: MyBot):
         self.bot = bot
-        self.database_manager = bot.database_manager
-        self.logger = bot.logger
 
     def help_embed(self) -> discord.Embed:
         embed = discord.Embed(
