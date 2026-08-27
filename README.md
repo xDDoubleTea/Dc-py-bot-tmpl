@@ -5,6 +5,25 @@
 A starting point for a `discord.py` bot with an async SQLAlchemy database layer,
 cog-based commands, structured logging and graceful shutdown.
 
+## VS Code
+
+**This repository ships a `.vscode/` directory, so read it before opening the
+project in VS Code.** Workspace settings override your own for this folder, and
+opening it will prompt you to install the recommended extensions.
+
+`.vscode/settings.json` sets:
+
+- Ruff as the Python formatter, on save, with fix and organize-imports actions
+- pytest discovery for the built-in Testing panel, pointed at `tests/`
+- `.venv` as the interpreter and Pylance in `standard` type-checking mode
+
+`.vscode/extensions.json` recommends Ruff, the Python extensions, Even Better
+TOML and the GitHub Actions extension, and marks `ms-python.isort` unwanted,
+since ruff sorts imports through its `I` rules.
+
+Delete the directory if you would rather keep your own setup; nothing else in
+the template depends on it.
+
 ## Features
 
 - Using `uv` as the python virtual environment manager, written in `rust`!
