@@ -3,7 +3,7 @@ import discord
 from discord import Guild, Member, Role, PartialMessage, Message, TextChannel
 from discord.abc import GuildChannel
 from discord.ext.commands import Bot
-from discord.guild import DMChannel
+from discord import DMChannel
 from discord.user import User
 
 
